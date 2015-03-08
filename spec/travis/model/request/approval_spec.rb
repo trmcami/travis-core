@@ -178,6 +178,24 @@ describe Request::Approval do
     end
   end
 
+  describe 'revert_branch?' do
+    it 'returns true for a branch named revert-1234-topic_branch' do
+      request.commit.stubs(:branch).returns 'revert-1234-topic_branch'
+      approval.send(:revert_branch?).should be_true
+    end
+
+    it 'returns true when a PR is for revert_branch' do
+      request.commit.stubs(:ref).returns 'refs/pulls/1/merge'
+      request.commit.stubs(:branch).returns 'revert-1234-topic_branch'
+      approval.send(:revert_branch?).should be_true
+    end
+
+    it 'returns false for a branch named master' do
+      commit.stubs(:branch).returns 'master'
+      approval.send(:revert_branch?).should be_false
+    end
+  end
+
   describe 'included_repository?' do
     it 'returns true if the repository is an included repository' do
       request.repository.stubs(:slug).returns 'rails/rails'

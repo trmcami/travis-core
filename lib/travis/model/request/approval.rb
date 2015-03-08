@@ -75,6 +75,8 @@ class Request
         'private repository'
       elsif !request.creates_jobs?
         'matrix created no jobs'
+      elsif revert_branch?
+        'github-generated revert branch'
       end
     end
 
@@ -94,6 +96,10 @@ class Request
 
       def github_pages?
         commit.branch =~ /gh[-_]pages/i
+      end
+
+      def revert_branch?
+        commit.branch =~ /^revert-\d+-/i
       end
 
       def excluded_repository?
