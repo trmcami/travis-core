@@ -66,6 +66,8 @@ class Request
         request.pull_request? ? 'pull requests disabled' : 'pushes disabled'
       elsif github_pages?
         'github pages branch'
+      elsif revert_branch?
+        'github-generated revert branch'
       elsif request.config.blank?
         'missing config'
       elsif !branch_approved? || !branch_accepted?
@@ -76,8 +78,6 @@ class Request
         'private repository'
       elsif !request.creates_jobs?
         'matrix created no jobs'
-      elsif revert_branch?
-        'github-generated revert branch'
       end
     end
 
