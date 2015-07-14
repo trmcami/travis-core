@@ -141,6 +141,11 @@ describe Request::Approval do
       approval.message.should == 'github pages branch'
     end
 
+    it 'returns "github-generated revert branch" if the branch is a github pages branch' do
+      request.commit.stubs(:branch).returns('revert-56-bad-commit')
+      approval.message.should == 'github-generated revert branch'
+    end
+
     it 'returns "missing config" if the config is not present' do
       request.stubs(:config).returns(nil)
       approval.message.should == 'missing config'
