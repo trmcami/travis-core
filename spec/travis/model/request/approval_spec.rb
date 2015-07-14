@@ -143,7 +143,7 @@ describe Request::Approval do
 
     it 'returns "github-generated revert branch" if the branch is a github pages branch' do
       request.commit.stubs(:branch).returns('revert-56-bad-commit')
-      approval.message.should == 'github-generated revert branch'
+      approval.message.should == 'Pull Request reverted on GitHub'
     end
 
     it 'returns "missing config" if the config is not present' do

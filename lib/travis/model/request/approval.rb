@@ -67,7 +67,7 @@ class Request
       elsif github_pages?
         'github pages branch'
       elsif revert_branch?
-        'github-generated revert branch'
+        'Pull Request reverted on GitHub'
       elsif request.config.blank?
         'missing config'
       elsif !branch_approved? || !branch_accepted?
