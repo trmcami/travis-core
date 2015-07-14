@@ -19,6 +19,7 @@ class Request
         !repository.private? &&
         (!excluded_repository? || included_repository?) &&
         !skipped? &&
+        !revert_branch? &&
         enabled_in_settings?
     end
 

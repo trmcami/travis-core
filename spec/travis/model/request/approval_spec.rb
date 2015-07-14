@@ -86,6 +86,11 @@ describe Request::Approval do
       approval.should be_accepted
     end
 
+    it 'does not accept a request when it belongs to a GitHub-generated revert branch' do
+      request.commit.stubs(:branch).returns('revert-56-bad-commit')
+      approval.should_not be_accepted
+    end
+
     it 'does not accept a request when it is disabled in settings' do
       approval.stubs(:enabled_in_settings?).returns(false)
       approval.should_not be_accepted
