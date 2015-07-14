@@ -20,12 +20,14 @@ module Travis
         end
 
         def by_params
-          scope = self.scope(:repository)
+          scope = self.scope(:repository).without_invalidated
           scope = scope.timeline.recent                    if timeline?
           scope = scope.by_member(params[:member])         if params[:member]
           scope = scope.by_owner_name(params[:owner_name]) if params[:owner_name]
           scope = scope.by_slug(params[:slug])             if params[:slug]
-          scope = scope.search(params[:search])            if params[:search].present?
+          if params[:search].present?
+            scope = scope.search(params[:search]).order('last_build_started_at DESC NULLS LAST').limit(25)
+          end
           scope
         end
 

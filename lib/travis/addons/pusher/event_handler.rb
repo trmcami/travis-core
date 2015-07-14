@@ -12,11 +12,11 @@ module Travis
           /^job:test:(created|received|started|log|finished|canceled)/
         ]
 
-        attr_reader :channels
+        attr_reader :channels, :pusher_payload
 
         def initialize(*)
           super
-          @payload = Api.data(object, :for => 'pusher', :type => type, :params => data) if handle?
+          @pusher_payload = Api.data(object, :for => 'pusher', :type => type, :params => data) if handle?
         end
 
         def handle?
@@ -24,7 +24,7 @@ module Travis
         end
 
         def handle
-          Travis::Addons::Pusher::Task.run(:pusher, payload, :event => event)
+          Travis::Addons::Pusher::Task.run(queue, pusher_payload, :event => event)
         end
 
         private
@@ -33,9 +33,25 @@ module Travis
             event.sub('test:', '').sub(':', '/')
           end
 
+          def queue
+            if Travis::Features.enabled_for_all?(:"pusher-live") ||
+               Travis::Features.repository_active?(:"pusher-live", repository_id)
+              :"pusher-live"
+            else
+              :pusher
+            end
+          end
+
+          def repository_id
+            if payload && payload['repository'] && payload['repository']['id']
+              payload['repository']['id']
+            elsif object && object.repository && object.repository.id
+              object.repository.id
+            end
+          end
+
           Instruments::EventHandler.attach_to(self)
       end
     end
   end
 end
-

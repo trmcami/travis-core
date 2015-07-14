@@ -52,24 +52,28 @@ class Repository < Travis::Model
     end
 
     def by_owner_name(owner_name)
-      where(owner_name: owner_name)
+      without_invalidated.where(owner_name: owner_name)
     end
 
     def by_member(login)
-      joins(:users).where(users: { login: login })
+      without_invalidated.joins(:users).where(users: { login: login })
     end
 
     def by_slug(slug)
-      where(owner_name: slug.split('/').first, name: slug.split('/').last)
+      without_invalidated.where(owner_name: slug.split('/').first, name: slug.split('/').last).order('id DESC')
     end
 
     def search(query)
       query = query.gsub('\\', '/')
-      where("(repositories.owner_name || chr(47) || repositories.name) ILIKE ?", "%#{query}%")
+      without_invalidated.where("(repositories.owner_name || chr(47) || repositories.name) ILIKE ?", "%#{query}%")
     end
 
     def active
-      where(active: true)
+      without_invalidated.where(active: true)
+    end
+
+    def without_invalidated
+      where(invalidated_at: nil)
     end
 
     def find_by(params)
@@ -80,7 +84,7 @@ class Repository < Travis::Model
       elsif params.key?(:slug)
         by_slug(params[:slug]).first
       elsif params.key?(:name) && params.key?(:owner_name)
-        where(params.slice(:name, :owner_name)).first
+        by_slug("#{params[:owner_name]}/#{params[:name]}").first
       end
     end
 
@@ -89,7 +93,7 @@ class Repository < Travis::Model
     end
 
     def counts_by_owner_names(owner_names)
-      query = %(SELECT owner_name, count(*) FROM repositories WHERE owner_name IN (?) GROUP BY owner_name)
+      query = %(SELECT owner_name, count(*) FROM repositories WHERE owner_name IN (?) AND invalidated_at IS NULL GROUP BY owner_name)
       query = sanitize_sql([query, owner_names])
       rows = connection.select_all(query, owner_names)
       Hash[*rows.map { |row| [row['owner_name'], row['count'].to_i] }.flatten]
@@ -157,7 +161,7 @@ class Repository < Travis::Model
 
   def regenerate_key!
     ActiveRecord::Base.transaction do
-      key.destroy
+      key.destroy unless key.nil?
       build_key
       save!
     end

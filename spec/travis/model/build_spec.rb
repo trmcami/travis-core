@@ -58,12 +58,12 @@ describe Build do
 
   describe 'class methods' do
     describe 'recent' do
-      it 'returns recent builds ordered by started time descending' do
-        Factory(:build, state: 'passed', started_at: 2.second.ago)
-        Factory(:build, state: 'started', started_at: 1.second.ago)
-        Factory(:build, state: 'created', started_at: nil)
+      it 'returns recent finished builds ordered by id descending' do
+        Factory(:build, state: 'passed')
+        Factory(:build, state: 'failed')
+        Factory(:build, state: 'created')
 
-        Build.recent.all.map(&:state).should == ['started', 'passed']
+        Build.recent.all.map(&:state).should == ['failed', 'passed']
       end
     end
 
@@ -147,15 +147,6 @@ describe Build do
         builds = Build.descending.paged({page: 2})
         builds.should have(1).item
         builds.first.number.should == '2'
-      end
-    end
-
-    describe 'next_number' do
-      it 'returns the next build number' do
-        1.upto(3) do |number|
-          Factory(:build, repository: repository, number: number)
-          repository.builds.next_number.should == number + 1
-        end
       end
     end
 

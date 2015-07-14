@@ -8,69 +8,92 @@ class Job
   # queue) or the language given in the configuration (`.travis.yml`) and
   # default to 'builds.linux'.
   class Queue
+    SUDO_REQUIRED_EXECUTABLES = %w(
+      docker
+      ping
+      sudo
+    )
+
+    SUDO_DETECTION_REGEXP = /^[^#]*\b(#{SUDO_REQUIRED_EXECUTABLES.join('|')})\b/
+
+    CUSTOM_STAGES = %w(
+      before_install
+      install
+      before_script
+      script
+      before_cache
+      after_success
+      after_failure
+      after_script
+      before_deploy
+    ).map(&:to_sym)
+
     class << self
       def for(job)
-        repo_name  = job.repository.try(:name)
-        owner_name = job.repository.try(:owner_name)
-        language   = Array(job.config[:language]).flatten.compact.first
-        os         = job.config[:os]
-        sudo       = job.config[:sudo]
-        owner      = job.repository.try(:owner)
-        education  = Travis::Github::Education.education_queue?(owner)
-        queues.detect { |queue| queue.send(:matches?, owner_name, repo_name, language, os, sudo, education) } || default
+        queues.detect(lambda { default }) { |queue| queue.matches?(job) }
       end
 
       def queues
         @queues ||= Array(Travis.config.queues).compact.map do |queue|
-          Queue.new(*queue.values_at(*[:queue, :slug, :owner, :language, :os, :sudo, :education]))
+          Queue.new(queue[:queue], queue.reject { |key, value| key == :queue })
         end
       end
 
       def default
-        @default ||= new(Travis.config.default_queue)
+        @default ||= Queue.new(Travis.config.default_queue, {})
+      end
+
+      def sudo_detected?(config)
+        config.values_at(*CUSTOM_STAGES).compact.flatten.any? do |s|
+          SUDO_DETECTION_REGEXP =~ s.to_s
+        end
       end
     end
 
-    attr_reader :name, :slug, :owner, :language, :os, :sudo, :education
+    attr_reader :name, :attrs
 
-    protected
+    def initialize(name, attrs)
+      @name = name
+      @attrs = attrs
+    end
 
-      def initialize(*args)
-        @name, @slug, @owner, @language, @os, @sudo, @education = *args
+    def matches?(job)
+      matchers = matchers_for(job)
+
+      unknown_matchers = @attrs.keys - matchers.keys
+      if unknown_matchers.length > 0
+        warn "unknown matchers used for queue #{name}: #{unknown_matchers.join(", ")}"
       end
 
-      def matches?(owner, repo_name, language, os = nil, sudo = nil, education = false)
-        return matches_education?(education) if education
-        matches_slug?("#{owner}/#{repo_name}") || matches_owner?(owner) ||
-          matches_os?(os) || matches_language?(language) || matches_sudo?(sudo)
-      end
+      known_matchers = @attrs.keys & matchers.keys
 
-      def queue
-        name
-      end
+      known_matchers.length > 0 && known_matchers.all? { |key| matchers[key.to_sym] === @attrs[key] }
+    end
 
-      def matches_slug?(slug)
-        !!self.slug && (self.slug == slug)
-      end
+    private
 
-      def matches_owner?(owner)
-        !!self.owner && (self.owner == owner)
-      end
+    def matchers_for(job)
+      {
+        :slug => "#{job.repository.try(:owner_name)}/#{job.repository.try(:name)}",
+        :owner => job.repository.try(:owner_name),
+        :os => job.config[:os],
+        :language => Array(job.config[:language]).flatten.compact.first,
+        :sudo => job.config.fetch(:sudo) { !repo_is_default_docker?(job) },
+        :dist => job.config[:dist],
+        :osx_image => job.config[:osx_image],
+        :percentage => lambda { |percentage| rand(100) < percentage },
+      }
+    end
 
-      def matches_language?(language)
-        !!self.language && (self.language == language)
-      end
+    def repo_is_default_docker?(job)
+      return true if Travis::Github::Education.education_queue?(job.repository.try(:owner))
+      return false unless Travis::Features.feature_active?(:docker_default_queue)
+      !self.class.sudo_detected?(job.config) && repo_created_after_docker_cutoff?(job.repository)
+    end
 
-      def matches_os?(os)
-        !!self.os && (self.os == os)
-      end
-
-      def matches_sudo?(sudo)
-        !self.sudo.nil? && (self.sudo == sudo)
-      end
-
-      def matches_education?(education)
-        !!self.education && (self.education == education)
-      end
+    def repo_created_after_docker_cutoff?(repository)
+      return true if repository.created_at.nil?
+      repository.created_at > Time.parse(Travis.config.docker_default_queue_cutoff)
+    end
   end
 end

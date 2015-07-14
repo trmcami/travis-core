@@ -1,6 +1,7 @@
 require 'core_ext/hash/deep_symbolize_keys'
 require 'simple_states'
 require 'travis/model'
+require 'travis/services/next_build_number'
 
 # Build currently models a central but rather abstract domain entity: the thing
 # that is triggered by a Github request (service hook ping).
@@ -62,8 +63,8 @@ class Build < Travis::Model
   delegate :same_repo_pull_request?, :to => :request
 
   class << self
-    def recent(options = {})
-      where('state IN (?)', state_names - [:created, :queued]).order(arel_table[:started_at].desc).paged(options)
+    def recent
+      where(state: ['failed', 'passed']).order('id DESC').limit(25)
     end
 
     def was_started
@@ -82,12 +83,14 @@ class Build < Travis::Model
       pushes.where(branch.present? ? ['branch IN (?)', normalize_to_array(branch)] : [])
     end
 
-    def by_event_type(event_type)
-      event_type == 'pull_request' ?  pull_requests : pushes
+    def by_event_type(event_types)
+      event_types = Array(event_types).flatten
+      event_types << 'push' if event_types.empty?
+      where(event_type: event_types)
     end
 
     def pushes
-      where(:event_type => 'push')
+      where(event_type: 'push')
     end
 
     def pull_requests
@@ -124,10 +127,6 @@ class Build < Travis::Model
       scope
     end
 
-    def next_number
-      maximum('number::int4').to_i + 1
-    end
-
     protected
 
       def normalize_to_array(object)
@@ -141,7 +140,8 @@ class Build < Travis::Model
 
   # set the build number and expand the matrix
   before_create do
-    self.number = repository.builds.next_number
+    next_build_number = Travis::Services::NextBuildNumber.new(repository_id: repository.id).run
+    self.number = next_build_number
     self.previous_state = last_finished_state_on_branch
     self.event_type = request.event_type
     self.pull_request_title = request.pull_request_title
