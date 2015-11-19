@@ -1,6 +1,7 @@
 --colour
 --tty
 --format documentation
+--order rand
 
-# TODO: figure out why this breaks on ruby 2.0
-# --order rand
+# XXX: flaky specs known to fail with seed 38011
+--seed 38011
