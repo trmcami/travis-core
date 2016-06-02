@@ -12,6 +12,11 @@ describe Travis::CommitCommand do
       Travis::CommitCommand.new(message).skip?.should eq true
     end
 
+    it 'is invoked by a commit message containing [ci   skip]' do
+      message = "foo [ci   skip] bar"
+      Travis::CommitCommand.new(message).skip?.should eq true
+    end
+
     it 'is invoked by a commit message containing [CI skip]' do
       message = "foo [CI skip] bar"
       Travis::CommitCommand.new(message).skip?.should eq true
@@ -29,6 +34,11 @@ describe Travis::CommitCommand do
 
     it 'is invoked by the special case: [skip ci]' do
       message = "foo [skip ci] bar"
+      Travis::CommitCommand.new(message).skip?.should eq true
+    end
+
+    it 'is invoked by the special case: [skip     ci]' do
+      message = "foo [skip     ci] bar"
       Travis::CommitCommand.new(message).skip?.should eq true
     end
   end

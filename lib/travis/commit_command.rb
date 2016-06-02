@@ -13,7 +13,7 @@ module Travis
     attr_reader :message
 
     def command
-      message =~ /\[ci(?: |:)([\w ]*)\]/i && $1.downcase
+      message =~ /\[ci(?: +|:)([\w ]*)\]/i && $1.downcase
     end
 
     def backwards_skip
