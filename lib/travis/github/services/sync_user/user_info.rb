@@ -24,9 +24,7 @@ module Travis
             end
 
             user.update_attributes!(name: name, login: login, gravatar_id: gravatar_id, email: email, education: education)
-            emails = verified_emails
-            emails << email unless emails.include? email
-            emails.each { |e| user.emails.find_or_create_by_email!(e) }
+            update_user_emails
           end
 
           def education
@@ -82,6 +80,13 @@ module Travis
                 end
                 data
               end
+            end
+
+            def update_user_emails
+              github_emails = verified_emails | [email]
+              github_emails.each { |e| user.emails.find_or_create_by_email!(e) }
+              emails_to_remove = user.emails.map(&:email) - github_emails
+              user.emails.where(email: emails_to_remove).destroy_all
             end
         end
       end

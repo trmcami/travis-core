@@ -2,6 +2,8 @@ require 'spec_helper'
 require 'ostruct'
 
 describe Travis::Github::Services::SyncUser::UserInfo do
+  include Support::ActiveRecord
+
   let(:old_user_info) {{
     'login'         => 'rkh',
     'name'          => 'Konstantin Haase',
@@ -73,16 +75,17 @@ describe Travis::Github::Services::SyncUser::UserInfo do
     subject.stubs(:education).returns(true)
     args   = user_info.slice('login', 'name', 'email', 'gravatar_id').symbolize_keys
     args[:education] = true
-    emails = stub("email")
-    user.stubs(:emails).returns(emails)
-    user.stubs(:github_id).returns(100)
-    user.stubs(:id).returns(1)
+    email = stub('email', email: 'user@email.com')
+    emails = [email]
+    emails.stubs(:where).returns(emails)
+    user.stubs(emails: emails, github_id: 100, id: 1)
     user.class.stubs(:table_name).returns('users') # for Features
     Travis::Features.activate_owner(:education_data_sync, user)
     user.expects(:update_attributes!).with(args).once
     emails.expects(:find_or_create_by_email!).with("konstantin.mailinglists@gmail.com").once
     emails.expects(:find_or_create_by_email!).with("konstantin.mailinglists@googlemail.com").once
     emails.expects(:find_or_create_by_email!).with("konstantin.haase@gmail.com").once
+    emails.expects(:destroy_all)
     subject.run
   end
 
@@ -93,5 +96,31 @@ describe Travis::Github::Services::SyncUser::UserInfo do
     expect {
       subject.run
     }.to raise_error(/Updating.*?failed/)
+  end
+
+  describe 'verified emails changed' do
+    let(:gh_email) { user_info['email'] }
+    let(:gh_emails) do
+      verified_emails = emails.select { |email| email['verified'] }.map { |email| email['email'] }
+      verified_emails + [gh_email]
+    end
+    let(:user) { Factory(:user, id: '100', github_id: 100, email: 'old@email.com') }
+    let(:existing_emails) do
+      [stub('email', email: 'old@email.com'),
+        stub('email', email: 'another_old@email.com'),
+        stub('email', email: 'konstantin.mailinglists@gmail.com')]
+    end
+
+    before do
+      subject.stubs(:education).returns(true)
+      subject.run
+      user.reload
+    end
+
+    its('user.email') { should == gh_email }
+
+    it 'should remove stale emails' do
+      user.emails.map(&:email).sort.should == gh_emails.sort
+    end
   end
 end
